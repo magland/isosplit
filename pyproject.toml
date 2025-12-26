@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "isosplit"
+version = "0.1.0"
+description = "IsoSplit clustering algorithm for automatic cluster detection"
+authors = [
+    {name = "Jeremy Magland"}
+]
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "Apache-2.0"}
+dependencies = [
+    "numpy",
+    "scikit-learn",
+    "scipy",
+]
+
+[project.urls]
+Homepage = "https://github.com/magland/isosplit"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["isosplit*"]

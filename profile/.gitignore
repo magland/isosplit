@@ -1,0 +1,9 @@
+# Ignore profiling output files
+profile_results_*.txt
+*.lprof
+*.png
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+*.pyo
