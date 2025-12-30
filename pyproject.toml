@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isosplit"
-version = "0.1.0"
+version = "0.1.1"
 description = "IsoSplit clustering algorithm for automatic cluster detection"
 authors = [
     {name = "Jeremy Magland"}

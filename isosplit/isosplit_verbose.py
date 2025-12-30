@@ -12,7 +12,7 @@ if VERBOSE:
 
 PLOT_COUNTER = 0
 
-def print_header(initial_k: int, separation_threshold: float, data_shape: tuple) -> None:
+def print_header(initial_k: int, dip_threshold: float, data_shape: tuple) -> None:
     """Print initial header for verbose mode."""
     if not VERBOSE:
         return
@@ -20,7 +20,7 @@ def print_header(initial_k: int, separation_threshold: float, data_shape: tuple)
     print(f"ISOSPLIT VERBOSE MODE")
     print(f"{'='*60}")
     print(f"Initial k-means clustering: {initial_k} clusters")
-    print(f"Separation threshold: {separation_threshold}")
+    print(f"Dip threshold: {dip_threshold}")
     print(f"Data shape: {data_shape}")
 
 def print_iteration_info(passnum: int, iteration: int, cluster1_id: int, cluster2_id: int,
@@ -33,11 +33,11 @@ def print_iteration_info(passnum: int, iteration: int, cluster1_id: int, cluster
     print(f"Cluster {cluster1_id} size: {cluster1_size}")
     print(f"Cluster {cluster2_id} size: {cluster2_size}")
 
-def print_separation_info(separation_score: float, threshold: float) -> None:
-    """Print separation score and threshold."""
+def print_dip_info(dip_score: float, threshold: float) -> None:
+    """Print dip score and threshold."""
     if not VERBOSE:
         return
-    print(f"Separation score: {separation_score:.4f}")
+    print(f"dip score: {dip_score:.4f}")
     print(f"Threshold: {threshold:.4f}")
 
 def print_decision_merge(merge_to: int) -> None:
@@ -91,10 +91,10 @@ def plot_clusters(data: np.ndarray, labels: np.ndarray, title: str, iteration: i
         print(f"  [Visualization skipped: {n_features}D data]")
 
 def plot_1d_histogram(cluster1_1d: np.ndarray, cluster2_1d: np.ndarray, 
-                      cutpoint: float, separation_score: float,
+                      cutpoint: float, dip_score: float,
                       cluster1_id: int, cluster2_id: int, 
                       decision: str, iteration: int, passnum: int) -> None:
-    """Plot 1D histograms showing projected data with cutpoint and separation score."""
+    """Plot 1D histograms showing projected data with cutpoint and dip score."""
     if not VERBOSE:
         return
     
@@ -118,7 +118,7 @@ def plot_1d_histogram(cluster1_1d: np.ndarray, cluster2_1d: np.ndarray,
     plt.xlabel('Projected Value (LDA direction)', fontsize=12)
     plt.ylabel('Frequency', fontsize=12)
     plt.title(f'1D Projection - Iteration {iteration}\n'
-              f'Separation Score: {separation_score:.4f} | Decision: {decision}',
+              f'dip Score: {dip_score:.4f} | Decision: {decision}',
               fontsize=13, fontweight='bold')
     plt.legend()
     plt.grid(alpha=0.3)
@@ -133,7 +133,7 @@ def plot_1d_histogram(cluster1_1d: np.ndarray, cluster2_1d: np.ndarray,
         'cluster1_1d': cluster1_1d,
         'cluster2_1d': cluster2_1d,
         'cutpoint': cutpoint,
-        'separation_score': separation_score,
+        'dip_score': dip_score,
         'decision': decision
     })
 

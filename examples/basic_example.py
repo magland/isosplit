@@ -16,13 +16,13 @@ np.random.seed(42)
 n_samples_per_cluster = 100
 
 # Cluster 1: centered at (0, 0)
-cluster1 = np.random.randn(n_samples_per_cluster, 2) * 0.5 + np.array([0, 0])
+cluster1 = np.random.randn(n_samples_per_cluster, 2) * 1 + np.array([0, 0])
 
 # Cluster 2: centered at (3, 3)
-cluster2 = np.random.randn(n_samples_per_cluster, 2) * 0.5 + np.array([3, 3])
+cluster2 = np.random.randn(n_samples_per_cluster, 2) * 1 + np.array([3, 3])
 
 # Cluster 3: centered at (3, -3)
-cluster3 = np.random.randn(n_samples_per_cluster, 2) * 0.5 + np.array([3, -3])
+cluster3 = np.random.randn(n_samples_per_cluster, 2) * 1 + np.array([3, -3])
 
 # Combine all clusters
 X = np.vstack([cluster1, cluster2, cluster3])
@@ -32,10 +32,7 @@ print(f"Number of samples: {X.shape[0]}")
 print(f"Number of dimensions: {X.shape[1]}")
 
 # Apply IsoSplit clustering
-# Explicitly set optional parameters:
-# - separation_threshold: Controls how separated clusters must be to remain separate (default=2)
-# - initial_k: Number of initial clusters for k-means (default=30)
-labels = isosplit(X, separation_threshold=2.0, initial_k=30)
+labels = isosplit(X)
 
 print(f"\nOutput labels shape: {labels.shape}")
 print(f"Number of detected clusters: {len(np.unique(labels))}")

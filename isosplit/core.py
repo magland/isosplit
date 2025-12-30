@@ -5,12 +5,13 @@ import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
-from .density_estimation import DensityEstimationConfig, estimate_density_dip
+from .estimate_density_dip import estimate_density_dip
+
 from .isosplit_verbose import (
     VERBOSE,
     print_header,
     print_iteration_info,
-    print_separation_info,
+    print_dip_info,
     print_decision_merge,
     print_decision_redistribute,
     plot_clusters,
@@ -36,7 +37,7 @@ class Timer:
         self.profile_dict[self.name] += elapsed
 
 def print_timings(profile_dict: dict) -> None:
-    if VERBOSE or True:
+    if VERBOSE:
         print("Timing profile:")
         for key, value in profile_dict.items():
             print(f"  {key}: {value:.4f} seconds")
@@ -45,9 +46,8 @@ def print_timings(profile_dict: dict) -> None:
 def isosplit(
     data: np.ndarray,
     *,
-    separation_threshold: float = 2,
-    initial_k: int = 30,
-    density_config: Optional[DensityEstimationConfig] = None,
+    dip_threshold: float = 2,
+    initial_k: int = 100,
     use_lda_for_merge_test: bool = True
 ) -> np.ndarray:
     """
@@ -58,13 +58,11 @@ def isosplit(
     data : np.ndarray
         Input data of shape (n, d) where n is the number of samples
         and d is the number of dimensions.
-    separation_threshold : float, default=2
+    dip_threshold : float, default=2
         Threshold for determining whether clusters should be merged.
         Higher values result in more clusters.
-    initial_k : int, default=30
+    initial_k : int, default=100
         Number of initial clusters for k-means initialization.
-    density_config : DensityEstimationConfig or None, default=None
-        Configuration for 1D density estimation. If None, uses default GMM method.
     use_lda_for_merge_test : bool, default=True
         Whether to use LDA for finding the optimal projection direction
         during the merge test. If False, uses simple centroid-based direction.
@@ -78,17 +76,10 @@ def isosplit(
     Examples
     --------
     >>> import numpy as np
-    >>> from isosplit import isosplit, DensityEstimationConfig
+    >>> from isosplit import isosplit
     >>> X = np.random.randn(100, 2)
     >>> labels = isosplit(X)
-    >>> 
-    >>> # Use faster KDE method
-    >>> config = DensityEstimationConfig(method='kde')
-    >>> labels = isosplit(X, density_config=config)
     """
-    if density_config is None:
-        density_config = DensityEstimationConfig()
-    
     profile_timing = {}
     n_samples, n_features = data.shape
 
@@ -104,7 +95,7 @@ def isosplit(
             labels = kmeans.fit_predict(data) + 1  # Convert to 1-based indexing
 
     if VERBOSE:
-        print_header(initial_k, separation_threshold, data.shape)
+        print_header(initial_k, dip_threshold, data.shape)
         plot_clusters(data, labels, "Initial K-means Clustering", 0, 0)
     
     num_clusters = len(np.unique(labels))
@@ -158,19 +149,19 @@ def isosplit(
                             len(cluster2_data),
                         )
 
-                    # Perform merge test with configured density estimation
+                    # Perform merge test
                     centroid1 = centroids[cluster1_id - 1]
                     centroid2 = centroids[cluster2_id - 1]
-                    separation_score, cutpoint, new_assignments, cluster1_1d, cluster2_1d = (
-                        _merge_test(cluster1_data, cluster2_data, centroid1, centroid2, density_config, use_lda_for_merge_test, profile_timing)
+                    dip_score, cutpoint, new_assignments, cluster1_1d, cluster2_1d = (
+                        _merge_test(cluster1_data, cluster2_data, centroid1, centroid2, use_lda_for_merge_test, profile_timing)
                     )
 
                 if VERBOSE:
-                    print_separation_info(separation_score, separation_threshold)
+                    print_dip_info(dip_score, dip_threshold)
 
                 with Timer('part2d', profile_timing):
                     # Decision: merge or redistribute
-                    if separation_score > separation_threshold:
+                    if dip_score > dip_threshold:
                         # set distance between these to inf to avoid reprocessing
                         distances[cluster1_id - 1, cluster2_id - 1] = np.inf
                         distances[cluster2_id - 1, cluster1_id - 1] = np.inf
@@ -207,7 +198,7 @@ def isosplit(
                                 cluster1_1d,
                                 cluster2_1d,
                                 cutpoint,
-                                separation_score,
+                                dip_score,
                                 cluster1_id,
                                 cluster2_id,
                                 "Redistributed",
@@ -245,7 +236,7 @@ def isosplit(
                                 cluster1_1d,
                                 cluster2_1d,
                                 cutpoint,
-                                separation_score,
+                                dip_score,
                                 cluster1_id,
                                 cluster2_id,
                                 "Merged",
@@ -420,7 +411,6 @@ def _merge_test(
     cluster2_data: np.ndarray,
     centroid1: np.ndarray,
     centroid2: np.ndarray,
-    density_config: DensityEstimationConfig,
     use_lda_for_merge_test: bool,
     profile_timing: dict
 ) -> Tuple[float, float, np.ndarray, np.ndarray, np.ndarray]:
@@ -428,11 +418,11 @@ def _merge_test(
     Test whether two clusters should be merged.
 
     Projects data onto optimal discriminative direction using LDA,
-    then performs 1D separation test.
+    then performs 1D dip test.
 
     Returns:
     --------
-    separation_score : float
+    dip_score : float
         Score indicating how separated the clusters are
     cutpoint : float
         Point to split the data if keeping separate
@@ -466,13 +456,13 @@ def _merge_test(
                 cluster1_1d = np.dot(c1_data, lda_direction)
                 cluster2_1d = np.dot(c2_data, lda_direction)
 
-            # Perform 1D separation test and get redistribution assignments
+            # Perform 1D dip test and get redistribution assignments
             with Timer('merge_test_1d', profile_timing):
-                separation_score, cutpoint, new_assignments = _merge_test_1d(
-                    cluster1_1d, cluster2_1d, density_config, profile_timing
+                dip_score, cutpoint, new_assignments = _merge_test_1d(
+                    cluster1_1d, cluster2_1d, profile_timing
                 )
 
-            return separation_score, cutpoint, new_assignments, cluster1_1d, cluster2_1d
+            return dip_score, cutpoint, new_assignments, cluster1_1d, cluster2_1d
 
     # Check if we have enough samples for LDA (need at least n_classes + 1)
     if n_samples <= 2 or not use_lda_for_merge_test:
@@ -502,33 +492,32 @@ def _merge_test(
         cluster1_1d = projected_data[:n1]
         cluster2_1d = projected_data[n1:]
 
-        # Perform 1D separation test and get redistribution assignments
+        # Perform 1D dip test and get redistribution assignments
         with Timer('merge_test_1d', profile_timing):
-            separation_score, cutpoint, new_assignments = _merge_test_1d(
-                cluster1_1d, cluster2_1d, density_config, profile_timing
+            dip_score, cutpoint, new_assignments = _merge_test_1d(
+                cluster1_1d, cluster2_1d, profile_timing
             )
 
-        return separation_score, cutpoint, new_assignments, cluster1_1d, cluster2_1d
+        return dip_score, cutpoint, new_assignments, cluster1_1d, cluster2_1d
 
 def _merge_test_1d(
     cluster1_1d: np.ndarray,
     cluster2_1d: np.ndarray,
-    density_config: DensityEstimationConfig,
     profile_timing: dict
 ) -> Tuple[float, float, np.ndarray]:
     """
-    Perform 1D separation test between two clusters and redistribute points.
+    Perform 1D dip test between two clusters and redistribute points.
 
     Algorithm:
     1. Combine points (keep original order)
     2. Find projected centroids
     3. Estimate densities at centroids and find minimum density point between them
-    4. Calculate separation score (ratio of endpoint densities to minimum density)
+    4. Calculate dip score (ratio of endpoint densities to minimum density)
     5. Redistribute points based on cutpoint
 
     Returns:
     --------
-    separation_score : float
+    dip_score : float
         Score indicating how separated the clusters are (higher = more separated)
     cutpoint : float
         Point of minimum density between centroids
@@ -543,17 +532,17 @@ def _merge_test_1d(
     a = np.mean(cluster1_1d)
     b = np.mean(cluster2_1d)
 
-    # Estimate density dip using configured method
+    # Estimate density dip
     with Timer('estimate_density_dip', profile_timing):
         xx = estimate_density_dip(
-            all_points, min(a, b), max(a, b), density_config
+            all_points, min(a, b), max(a, b)
         )
     density_left = xx["density_a"]
     density_right = xx["density_b"]
     c = xx["c"]
     density_c = xx["density_c"]
 
-    separation_score = (
+    dip_score = (
         min(density_left, density_right) / density_c if density_c > 0 else np.inf
     )
     cutpoint = c
@@ -563,7 +552,7 @@ def _merge_test_1d(
     else:
         new_assignments = np.where(all_points > cutpoint, 0, 1)
 
-    return separation_score, cutpoint, new_assignments
+    return dip_score, cutpoint, new_assignments
 
 def _reassign_labels(labels: np.ndarray) -> np.ndarray:
     """
