@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.stats import chi2
+from scipy.stats import norm
+from math import sqrt
 
 
 def poisson_ci_lower(k, conf):
@@ -34,6 +36,24 @@ def poisson_ci_upper(k, conf):
     """
     alpha = 1 - conf
     return 0.5 * chi2.ppf(1 - alpha / 2, 2 * k + 2)
+
+# Cache for norm.ppf values
+_norm_ppf_cache = {}
+
+def norm_ppf_cached(p):
+    if p not in _norm_ppf_cache:
+        _norm_ppf_cache[p] = norm.ppf(p)
+    return _norm_ppf_cache[p]
+
+def poisson_ci_lower_fast(k, conf):
+    if k == 0:
+        return 0.0
+    z = norm_ppf_cached((1 + conf) / 2)
+    return max(0.0, (sqrt(k) - z/2)**2)
+
+def poisson_ci_upper_fast(k, conf):
+    z = norm_ppf_cached((1 + conf) / 2)
+    return (sqrt(k + 1) + z/2)**2
 
 
 def estimate_density_dip(
@@ -97,8 +117,8 @@ def estimate_density_dip(
             continue
         
         # Calculate lower and upper confidence bounds for each bin count
-        counts_lower = np.array([poisson_ci_lower(k, conf) for k in counts])
-        counts_upper = np.array([poisson_ci_upper(k, conf) for k in counts])
+        counts_lower = np.array([poisson_ci_lower_fast(k, conf) for k in counts])
+        counts_upper = np.array([poisson_ci_upper_fast(k, conf) for k in counts])
 
         # Find the bin with minimum count (this gives us the cutpoint)
         min_idx = np.argmin(counts)
