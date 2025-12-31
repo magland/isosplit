@@ -44,7 +44,7 @@ def norm_ppf_cached(p):
         _norm_ppf_cache[p] = norm.ppf(p)
     return _norm_ppf_cache[p]
 
-def poisson_ci_lower_fast(k, conf):
+def poisson_ci_lower_fast_approx(k, conf):
     """
     Vectorized fast approximation for lower bound of Poisson confidence interval.
     
@@ -65,7 +65,7 @@ def poisson_ci_lower_fast(k, conf):
         return float(result)
     return result
 
-def poisson_ci_upper_fast(k, conf):
+def poisson_ci_upper_fast_approx(k, conf):
     """
     Vectorized fast approximation for upper bound of Poisson confidence interval.
     
@@ -117,8 +117,7 @@ def estimate_density_dip(
             - 'density_c': density estimate at cutpoint
     """
     # Ensure a <= b
-    if a > b:
-        a, b = b, a
+    assert a <= b, "Centroid a must be less than or equal to centroid b."
     
     # Number of bins to try
     num_bins_options = [10, 20, 40, 80, 160]
@@ -147,14 +146,11 @@ def estimate_density_dip(
             continue
         
         # Calculate lower and upper confidence bounds for each bin count (vectorized!)
-        counts_lower = poisson_ci_lower_fast(counts, conf)
-        counts_upper = poisson_ci_upper_fast(counts, conf)
+        counts_lower = poisson_ci_lower_fast_approx(counts, conf)
+        counts_upper = poisson_ci_upper_fast_approx(counts, conf)
 
         # Find the bin with minimum count (this gives us the cutpoint)
         min_idx = np.argmin(counts)
-        
-        # The cutpoint c is the midpoint of the minimum bin
-        c = a + min_idx * h
         
         # Calculate density dip score
         # Dip = min(endpoint densities) / max(density upper bounds)
@@ -172,6 +168,22 @@ def estimate_density_dip(
         # Keep track of the best (largest) dip
         if dip_score > best_dip:
             best_dip = dip_score
+
+            # The cutpoint c is the midpoint of the largest gap within the bin
+            bin_left = bin_edges[min_idx]
+            bin_right = bin_edges[min_idx + 1]
+            data_in_bin = data[(data >= bin_left) & (data < bin_right)]
+            if len(data_in_bin) > 0:
+                data_in_bin_sorted = np.sort(data_in_bin)
+                gaps = np.diff(data_in_bin_sorted)
+                if len(gaps) > 0:
+                    max_gap_idx = np.argmax(gaps)
+                    c = (data_in_bin_sorted[max_gap_idx] + data_in_bin_sorted[max_gap_idx + 1]) / 2
+                else:
+                    c = (bin_left + bin_right) / 2
+            else:
+                c = (bin_left + bin_right) / 2
+
             best_result = {
                 'c': c,
                 'density_a': density_left_lower,
