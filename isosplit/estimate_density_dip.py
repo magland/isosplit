@@ -1,7 +1,6 @@
 import numpy as np
 from scipy.stats import chi2
 from scipy.stats import norm
-from math import sqrt
 
 
 def poisson_ci_lower(k, conf):
@@ -46,14 +45,45 @@ def norm_ppf_cached(p):
     return _norm_ppf_cache[p]
 
 def poisson_ci_lower_fast(k, conf):
-    if k == 0:
-        return 0.0
+    """
+    Vectorized fast approximation for lower bound of Poisson confidence interval.
+    
+    Parameters:
+        k : int, float, or np.ndarray (observed count(s))
+        conf : float (confidence level, e.g. 0.95 or 0.50)
+    
+    Returns:
+        float or np.ndarray : Lower bound(s) of the confidence interval
+    """
     z = norm_ppf_cached((1 + conf) / 2)
-    return max(0.0, (sqrt(k) - z/2)**2)
+    # Convert to numpy array for vectorized operations
+    k_arr = np.asarray(k)
+    # Calculate lower bound, handling k=0 case
+    result = np.maximum(0.0, (np.sqrt(k_arr) - z/2)**2)
+    # If input was scalar, return scalar
+    if np.ndim(k) == 0:
+        return float(result)
+    return result
 
 def poisson_ci_upper_fast(k, conf):
+    """
+    Vectorized fast approximation for upper bound of Poisson confidence interval.
+    
+    Parameters:
+        k : int, float, or np.ndarray (observed count(s))
+        conf : float (confidence level, e.g. 0.95 or 0.50)
+    
+    Returns:
+        float or np.ndarray : Upper bound(s) of the confidence interval
+    """
     z = norm_ppf_cached((1 + conf) / 2)
-    return (sqrt(k + 1) + z/2)**2
+    # Convert to numpy array for vectorized operations
+    k_arr = np.asarray(k)
+    result = (np.sqrt(k_arr + 1) + z/2)**2
+    # If input was scalar, return scalar
+    if np.ndim(k) == 0:
+        return float(result)
+    return result
 
 
 def estimate_density_dip(
@@ -116,9 +146,9 @@ def estimate_density_dip(
         if len(counts) == 0 or np.sum(counts) == 0:
             continue
         
-        # Calculate lower and upper confidence bounds for each bin count
-        counts_lower = np.array([poisson_ci_lower_fast(k, conf) for k in counts])
-        counts_upper = np.array([poisson_ci_upper_fast(k, conf) for k in counts])
+        # Calculate lower and upper confidence bounds for each bin count (vectorized!)
+        counts_lower = poisson_ci_lower_fast(counts, conf)
+        counts_upper = poisson_ci_upper_fast(counts, conf)
 
         # Find the bin with minimum count (this gives us the cutpoint)
         min_idx = np.argmin(counts)
